@@ -1,0 +1,428 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1" />
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <title>Asm Informa</title>
+	  <link rel="stylesheet" href="index.css" /> 
+	  <script type="text/javascript" charset="utf-8" src="cordova-2.9.1.js"></script>
+	  <script type="text/javascript" charset="utf-8" src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
+	  
+		<script type="text/javascript" charset="utf-8">
+			//flag se onLine
+			var isOnline = false;
+			// coordinate
+			var latitude = null;
+			var longitude = null;
+			// dimensioni schermo
+			var width = null;
+			var height = null;
+			// tentativo di sapere dimensioni fisiche : NON ATTENDIBILE
+			var widthInch = null;
+			var heightInch = null;
+			// url di produzione
+			//var OK_URL = "http://asminforma.servizi.asmprato.it/asmAppInformaServer/";
+			// url in test.
+			var OK_URL = "http://infoservicetest.servizi.asmprato.it/asmAppInformaServer/"; 
+			// alberto locale	
+			//var OK_URL = "http://192.168.200.5:8080/asmAppInformaServer/"; // alberto ethernet
+			//var OK_URL = "http://192.168.200.5:8080/asmAppInformaServer/"; // alberto wifi
+			// pagina errore
+			var NOK_URL = "errorPage.html";
+			var watchID = null;
+			// identifico le dimensioni in pixel dello schermo mobile
+			getDeviceDimention();
+			// aggancio gli eventi del phonegap
+			document.addEventListener("deviceready", onDeviceReady, false);
+			document.addEventListener("online", onOnline, false);
+		    document.addEventListener("offline", onOffline, false);
+		    // ciclo di calcolo approssimativo dimensioni schermo in pixel ... per passi successivi...
+			var myMainLoop = window.setInterval(calcolaHeightWidth, 1000);
+			var interation = 1;
+	        function calcolaHeightWidth(){
+		        width = window.innerWidth;
+		        height = window.innerHeight;
+		    	document.getElementById('contesto').style.height= (height-2) + "px";
+		    	document.getElementById('contesto').style.width= (width-2) + "px";
+		    	// esco dopo 5 secondi ... il tempo dello splashscreen..
+		    	if ( interation > 5 ) clearInterval(myMainLoop);
+		     }
+
+			// Cordova is ready
+			//
+			var options = null;
+			// evento pgap device pronta
+			function onDeviceReady() {
+				navigator.splashscreen.show();
+				init();
+				navigator.geolocation.getCurrentPosition(onSuccessGeo, onErrorGeo);
+				watchID = navigator.geolocation.watchPosition(onSuccessWatch, onErrorWatch, { maximumAge: 30000, timeout: 30000, enableHighAccuracy: true });
+				
+			}
+			// richiamo su load pagina
+			function init() {
+			    document.addEventListener("backbutton", onBackKeyDown, true);
+			    document.addEventListener("menubutton", onMenuKeyDown, true);
+			}
+
+			// intercetto evento menu
+            function onMenuKeyDown() {
+                // Handle the menu button
+                try
+                {
+                    document.getElementById('contesto').contentWindow.callPreferences();
+                } catch (err) {};
+            }
+
+			// Handle the back button
+		    //
+			function onBackKeyDown() {
+			    try
+			    {
+					document.getElementById('contesto').contentWindow.backPressed();
+			    } catch (err) {exit();};
+			}
+			// se non ho altre pagine esco.
+			function exit() {
+			    navigator.notification.confirm(
+			        'Vuoi uscire dall applicazione?',  // message
+			        exitFromApp,              // callback to invoke with index of button pressed
+			        'Conferma Uscita',            // title
+			        'NO,Sì'         // buttonLabels
+			    );
+			}
+
+			// conferma di uscita
+			function exitFromApp(buttonIndex) {
+			  if (buttonIndex==2){
+			   navigator.app.exitApp();
+				}
+			}			
+
+			// Handle the online event
+		    //
+		    function onOnline() {
+		 		isOnline = true;
+		    	OK_URL = OK_URL ;
+		    	parti (OK_URL+ "?apptype=pgap&width="+width+"&height="+height);
+		    	
+		    }
+		 	// Handle the offline event
+		    //
+		    function onOffline() {
+		 		//alert("Non è stata rilevata nessuna connessione ad internet, per utilizzare questa App è necessario attivarla.");
+		 		isOnline = false;
+		    	parti (NOK_URL);
+		    	alert("Non è stata rilevata nessuna connessione ad internet, per utilizzare questa App è necessario attivarla.");
+		    }
+
+			// carico pagina in iframe		
+			function parti( url ) {
+				//alert(url);
+				document.getElementById('contesto').src = url;
+				// window.document.location.href = url;
+			}
+		
+			// *********************** SCREEN DIMENSION ****************************************//
+			function getDeviceDimention() {
+		        width = window.innerWidth;
+		        height = window.innerHeight;
+		        //width = window.screen.width;
+		        //height = window.screen.height;
+		        // attenzione la densita è poco accurata.
+		        //var density = getPPI();
+		        //widthInch = (width/density);
+		        //heightInch =(height/density);
+		    }
+			function getPPI(){
+				 // create an empty element
+				 var div = document.createElement("div");
+				 // give it an absolute size of one inch
+				 div.style.width="1in";
+				 // append it to the body
+				 var body = document.getElementsByTagName("body")[0];
+				 body.appendChild(div);
+				 // read the computed width
+				 var ppi = document.defaultView.getComputedStyle(div, null).getPropertyValue('width');
+				 // remove it again
+				 body.removeChild(div);
+				 // and return the value
+				 return parseFloat(ppi);
+				}
+			
+			// *********************** GEOLOCATION ****************************************//
+			// onSuccess Callback
+			// This method accepts a Position object, which contains the
+			// current GPS coordinates
+			//
+			var onSuccessGeo = function(position) {
+			    latitude = position.coords.latitude;
+			    longitude = position.coords.longitude;
+			    //alert ( latitute + "  " + longitude );
+			    if ( isOnline ) 
+			    {	
+			    	// notifico al server le coordinate.
+					try
+				    {
+						document.getElementById('contesto').contentWindow.getLatLongFromApp(latitude,longitude);
+				    } catch (err) {};
+			    }
+			    else parti (NOK_URL);
+
+			};
+
+			// onError Callback receives a PositionError object
+			//
+			function onErrorGeo(error) 
+			{
+				alert("Il tuo GPS è disabilitato o i servizi di localizzazione, per utilizzare questa applicazione è raccomandabile attivarli.");
+			}
+
+			// *********************** GEOLOCATION WATCHPOSITION ****************************************//
+			// onSuccess Callback
+			//   This method accepts a `Position` object, which contains
+			//   the current GPS coordinates
+			//
+			function onSuccessWatch(position) {
+			    if ( isOnline ) 
+			    {	
+			    	// notifico le coordinate al server.
+					try
+				    {
+						document.getElementById('contesto').contentWindow.getLatLongFromApp(latitude,longitude);
+				    } catch (err) {};
+			    }
+			    else parti (NOK_URL);
+			}
+	
+			// onError Callback receives a PositionError object
+			//
+			function onErrorWatch(error) {
+				//parti (NOK_URL);
+			}
+	
+			// *********************** TAKE PICTURE ****************************************//
+			// onSuccess Callback
+			//   This method accepts a `Position` object, which contains
+			//   the current GPS coordinates
+			//
+			
+			function takePicture_impl() {
+				//alert("take the photo");
+				navigator.camera.getPicture(onSuccessCamera, onFailCamera, { quality: 25,
+				    destinationType: Camera.DestinationType.FILE_URI
+				} );
+			}
+			var file, fileType, reader = new FileReader();
+	        var finalFile;
+			function onSuccessCamera(imageURI) {
+				//alert("cerco di scalare l'immagine");
+				// scalo l'immagine
+				file = imageURI;
+				fileType = "image/jpeg";
+				window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, gotFS, failFS);
+			}
+			
+			function gotFS(fileSystem) {
+				//alert("cerco di recuperare il filesystem con il file " + file);
+			    //fileSystem.root.getFile(file, {create: false, exclusive: false}, gotFileEntry, failFileEntry);
+			    window.resolveLocalFileSystemURI(file, gotFileEntry, failFileEntry);
+			}
+			function failFS(evt) {
+				 alert("errore nel recupero filesystem " + evt.target.error.code + " " + evt.target.error.message);
+		    }
+
+			function gotFileEntry(fileEntry) {
+				 //alert("cerco di recuperare il fileentry");
+		        fileEntry.file(gotFile, failFile);
+		    }
+			function failFileEntry(evt) {
+				 alert("errore nel recupero fileentry " + evt.target.error.code + " " + evt.target.error.message);
+		    }
+
+		    function gotFile(fileImg){
+				 //alert("cerco di recuperare il file");
+				readDataUrl(fileImg);
+		    }
+			function failFile(evt) {
+				 alert("errore nel recupero file " + evt.target.error.code + " " + evt.target.error.message);
+		    }
+
+			// writer
+	    	function gotWFS(fileSystem) {
+	    		file = "asmappinforma/imgfile_"+new Date().getTime()+".jpg";
+	        	fileSystem.root.getFile(file, {create: true, exclusive: false}, gotWFileEntry, Wfail);
+	    	}
+
+	    	function gotWFileEntry(fileEntry) {
+	        	fileEntry.createWriter(gotWFileWriter, Wfail);
+	    	}
+
+	    	function gotWFileWriter(writer) {
+	    		//alert("writeilfile il file " + file);
+	    		var bb = b64toBlob(finalFile, fileType, 512)
+	    		writer.onwriteend = function(evt) {
+                	console.log("fine scrittura del file " + writer.fileName);
+            	};
+	        	writer.write(bb);
+	    		//alert("scritto il file writer");
+	    		file = writer.fileName;
+	        	uploadImage(file);
+	    	}
+	    	
+	    	function b64toBlob(b64Data, contentType, sliceSize) {
+	    	    contentType = contentType || '';
+	    	    sliceSize = sliceSize || 512;
+				//console.log("taglio parte dei dati " + b64Data.substring(22));
+	    	    var byteCharacters = atob(b64Data.substring(22));
+	    		//alert("convertito in atob " + byteCharacters);
+	    	    var byteArrays = [];
+
+	    	    for (var offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+	    	        var slice = byteCharacters.slice(offset, offset + sliceSize);
+
+	    	        var byteNumbers = new Array(slice.length);
+	    	        for (var i = 0; i < slice.length; i++) {
+	    	            byteNumbers[i] = slice.charCodeAt(i);
+	    	        }
+
+	    	        var byteArray = new Uint8Array(byteNumbers);
+
+	    	        byteArrays.push(byteArray);
+	    	    }
+	    		//alert("convertito in bytearrays " + byteArrays);
+				var blob;
+	    	    try
+	    	    {
+	    	    	blob = new Blob( [byteArrays.buffer], {type : contentType});
+	    	    }
+	    	    catch(e)
+	    	    {
+    	    	    // TypeError old chrome and FF
+    	    	    window.BlobBuilder = window.BlobBuilder || 
+    	    	                         window.WebKitBlobBuilder || 
+    	    	                         window.MozBlobBuilder || 
+    	    	                         window.MSBlobBuilder;
+    	    	    if(e.name == 'TypeError' && window.BlobBuilder){
+    	    	        var bb = new BlobBuilder();
+    	    	        bb.append([byteArrays.buffer]);
+    	    	        blob = bb.getBlob(contentType);
+    	    	    }
+    	    	    else if(e.name == "InvalidStateError"){
+    	    	        // InvalidStateError (tested on FF13 WinXP)
+    	    	        blob = new Blob( [byteArrays.buffer], {type : contentType});
+    	    	    }
+    	    	    else{
+    	    	        // We're screwed, blob constructor unsupported entirely
+    	    	        console.log("blob non supportato .. ")
+    	    	    }
+    	    	}	    		
+	    		
+	    	    return blob;
+	    	    //return byteArrays.buffer;
+	    	}	    	
+
+	   		function Wfail(error) {
+	   			alert(error.code + " " +error.message);
+	        	console.log(error.code);
+	   		}			
+			
+	   		function uploadImage(fileImg)
+	   		{
+				var ft, options, urlToUpload;
+				ft = new FileTransfer();
+				options = new FileUploadOptions();
+				urlToUpload = $( "#contesto" ).contents().find( "#attach-upload" ).attr('action');
+				//ft.upload(imageURI, urlToUpload, successUpload, failUpload, options);
+				console.log("invio immagine ... " + fileImg );
+				ft.upload(fileImg, urlToUpload, successUpload, failUpload, options);
+	   			
+	   		}
+			
+
+		    
+		    // UPLOAD DEL FILE
+			function successUpload (response) {
+			    console.log("la tua foto è stata inviata al server con successo.");
+			};
+			  // callback if the photo fails to upload successfully.
+			function failUpload (error) {
+			    console.log("Errore nell'invio della foto al server: Code = " + error.code + " " + error.message + " " + error);
+			};
+			
+
+			function onFailCamera(message) {
+			    //alert('Failed because: ' + message);
+			    console.log('Camera fallita per : ' + message);
+			}
+			
+			
+			
+			// aggancio l'evento alla pressione del pulsante allega foto.
+			// solo per utilizzo phonegap.
+			var findit = false;
+			var myIntervalTimeout = window.setInterval(go, 3000);
+	        function go(){
+	        	  var name = $( "#contesto" ).contents().find( ".gwt-FileUpload" ).attr('name');
+	        	  //alert ( name );
+				  if ( name != null && name != 'undefined' )
+				  {
+		    	  	  //clearInterval(myIntervalTimeout);
+		    	  	  $( "#contesto" ).contents().find( ".v-button" ).unbind();
+					  $( "#contesto" ).contents().find( ".v-button" ).bind("click", function() {
+				    	  	takePicture_impl();
+				      });
+				  }
+		     }
+
+	        // files utilities
+	        function readDataUrl(fileImg) {
+        		var reader = new FileReader();
+
+					reader.onloadend = function(evt) {
+			        	if ( fileType == null || fileType == 'undefined' ) fileType = 'image/jpg';
+						var image = new Image();
+						image.src = reader.result;
+		
+						image.onload = function() {
+							var maxWidth = 480, maxHeight = 320, imageWidth = image.width, imageHeight = image.height;
+		
+							if (imageWidth > imageHeight) {
+								if (imageWidth > maxWidth) {
+									imageHeight *= maxWidth / imageWidth;
+									imageWidth = maxWidth;
+								}
+							} else {
+								if (imageHeight > maxHeight) {
+									imageWidth *= maxHeight / imageHeight;
+									imageHeight = maxHeight;
+								}
+							}
+		
+							var canvas = document.createElement('canvas');
+							canvas.width = imageWidth;
+							canvas.height = imageHeight;
+
+							var ctx = canvas.getContext("2d");
+							ctx.drawImage(this, 0, 0, imageWidth, imageHeight);
+
+							// The resized file ready for upload
+							// attenzione finalFile è il file in formato base64 devo scriverlo su filesystem e prendermi la uri.
+							finalFile = canvas.toDataURL(fileType);
+							
+							// scrivo il file su filesystem per upload immagine
+					        window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, gotWFS, Wfail);
+						}
+					};	        		
+        		reader.readAsDataURL(fileImg);
+    		}
+
+
+			
+		</script>
+
+</head>
+  <body style="backgroud-color: #fff" id="stage" class="theme">
+  	<iframe id="contesto" src=""></iframe>
+  </body>
+</html>
